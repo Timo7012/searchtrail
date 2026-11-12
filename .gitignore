@@ -1,0 +1,26 @@
+node_modules/
+.test-build/
+.browser-test/
+dist/
+/main.js
+/main.js.map
+*.log
+.DS_Store
+
+# Keep personal configuration and test vaults outside version control.
+.env
+.env.*
+!.env.example
+/dev-vault/
+/dev-vaults/
+
+# Local project notes and history backups must never be committed.
+/.local/
+/AGENTS.md
+/CODEX_HANDOFF.md
+/CODEX_START.txt
+/VALIDATION.md
+/docs/DEVELOPMENT.md
+/docs/MATERIALS.md
+/docs/MCP.md
+/docs/ROADMAP.md

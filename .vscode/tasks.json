@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SearchTrail: build",
+      "type": "npm",
+      "script": "build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "SearchTrail: check",
+      "type": "npm",
+      "script": "check",
+      "group": "test",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "SearchTrail: test",
+      "type": "npm",
+      "script": "test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "SearchTrail: test UI",
+      "type": "npm",
+      "script": "test:ui",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "SearchTrail: test installer",
+      "type": "npm",
+      "script": "test:install",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "SearchTrail: watch build",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "SearchTrail: build and install to test vault",
+      "type": "process",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/scripts/install-dev.mjs",
+        "--vault", "${input:obsidianTestVault}",
+        "--config-dir", "${input:obsidianConfigDir}"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": "SearchTrail: build",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "obsidianTestVault",
+      "type": "promptString",
+      "description": "Абсолютный путь к существующему тестовому хранилищу Obsidian"
+    },
+    {
+      "id": "obsidianConfigDir",
+      "type": "promptString",
+      "description": "Существующий каталог конфигурации внутри хранилища",
+      "default": ".obsidian"
+    }
+  ]
+}

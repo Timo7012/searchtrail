@@ -1,0 +1,9 @@
+{
+  "id": "research-search",
+  "name": "SearchTrail",
+  "version": "0.1.1",
+  "minAppVersion": "1.5.7",
+  "description": "Plan search strategies, preserve query revisions, and track literature searches with dates, counts, notes, and exports.",
+  "author": "SearchTrail contributors",
+  "isDesktopOnly": false
+}

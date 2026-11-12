@@ -1,0 +1,30 @@
+{
+  "name": "searchtrail",
+  "version": "0.1.1",
+  "description": "Plan literature searches and keep a reproducible search journal in Obsidian.",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "node scripts/test.mjs",
+    "test:ui": "node scripts/dom-smoke.mjs",
+    "test:install": "node --test scripts/test-install-dev.mjs",
+    "check": "npm run build && npm test && npm run test:ui && npm run test:install",
+    "install:dev": "npm run build && node scripts/install-dev.mjs",
+    "package": "npm run build && node scripts/package.mjs",
+    "example": "node scripts/create-example.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "esbuild": "^0.25.5",
+    "jsdom": "26.1.0",
+    "obsidian": "1.14.4",
+    "typescript": "^5.8.3"
+  }
+}

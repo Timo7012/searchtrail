@@ -1,0 +1,10 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.test-build": true,
+    "**/.browser-test": true,
+    "**/dist": true,
+    "main.js": true
+  }
+}

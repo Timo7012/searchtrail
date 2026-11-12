@@ -1,0 +1,246 @@
+{
+  "title": "Демонстрация — прогнозирование отказов",
+  "question": "Как документировать поиск методов прогнозирования технического состояния телекоммуникационного оборудования?",
+  "criteria": "Учебная карточка. Критерии отбора для реального исследования определяются отдельно.",
+  "deduplicationNotes": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса. Уникальные публикации здесь не подсчитываются.",
+  "schemaVersion": 1,
+  "id": "ff633165-98d4-4685-9f9b-2c1b676e01c5",
+  "revision": 9,
+  "createdAt": "2026-11-11T17:29:54.476Z",
+  "updatedAt": "2026-11-11T17:29:54.488Z",
+  "strategies": [
+    {
+      "id": "935c591a-0f67-49f2-b3e1-265bda86ff39",
+      "title": "Прогнозирование отказов оборудования",
+      "status": "active",
+      "createdAt": "2026-11-11T17:29:54.477Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "revisions": [
+        {
+          "id": "2c8e107f-bd61-4d12-9332-1e2ac6bc370d",
+          "number": 1,
+          "createdAt": "2026-11-11T17:29:54.477Z",
+          "changeNote": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса.",
+          "definition": {
+            "database": "Демонстрационная база",
+            "platform": "Учебная площадка — поиск не выполнялся",
+            "query": "(\"telecommunication equipment\" OR \"network equipment\") AND (\"failure prediction\" OR \"fault prediction\")",
+            "searchFields": "Название, аннотация, ключевые слова (пример)",
+            "filters": "Без ограничений по типу — учебное значение",
+            "publicationRange": "2020–2026",
+            "languages": "Русский, английский",
+            "searchUrl": ""
+          }
+        },
+        {
+          "id": "0af37bf4-8838-4819-9537-c0d501b3220a",
+          "number": 2,
+          "createdAt": "2026-11-11T17:29:54.488Z",
+          "changeNote": "Учебная версия 2: изменена группа терминов о методе.",
+          "definition": {
+            "database": "Демонстрационная база",
+            "platform": "Учебная площадка — поиск не выполнялся",
+            "query": "(\"telecommunication equipment\" OR \"network equipment\") AND (\"failure prediction\" OR \"condition monitoring\")",
+            "searchFields": "Название, аннотация, ключевые слова (пример)",
+            "filters": "Без ограничений по типу — учебное значение",
+            "publicationRange": "2020–2026",
+            "languages": "Русский, английский",
+            "searchUrl": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "3c7796e2-f62c-4d4e-bc51-e03a73a8af33",
+      "title": "Диагностика CRPS",
+      "status": "draft",
+      "createdAt": "2026-11-11T17:29:54.488Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "revisions": [
+        {
+          "id": "e3291a8c-16b7-4079-aa07-c34f615aff41",
+          "number": 1,
+          "createdAt": "2026-11-11T17:29:54.488Z",
+          "changeNote": "Учебный черновик; выполнения ещё нет.",
+          "definition": {
+            "database": "Демонстрационная база",
+            "platform": "Учебная площадка — поиск не выполнялся",
+            "query": "(CRPS OR \"server power supply\") AND (\"fault diagnosis\" OR \"condition monitoring\")",
+            "searchFields": "Название, аннотация, ключевые слова (пример)",
+            "filters": "Без ограничений по типу — учебное значение",
+            "publicationRange": "2020–2026",
+            "languages": "Русский, английский",
+            "searchUrl": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "e77e34fe-a079-47d7-9e3b-ea2dd7675cb9",
+      "title": "Диагностика SFP/SFP+",
+      "status": "active",
+      "createdAt": "2026-11-11T17:29:54.488Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "revisions": [
+        {
+          "id": "469ee1f6-b6d0-46d1-abba-1adf8fb6b1d6",
+          "number": 1,
+          "createdAt": "2026-11-11T17:29:54.488Z",
+          "changeNote": "Учебный запрос для пробного поиска.",
+          "definition": {
+            "database": "Демонстрационная база",
+            "platform": "Учебная площадка — поиск не выполнялся",
+            "query": "(SFP OR \"SFP+\") AND (\"failure prediction\" OR degradation)",
+            "searchFields": "Название, аннотация, ключевые слова (пример)",
+            "filters": "Без ограничений по типу — учебное значение",
+            "publicationRange": "2020–2026",
+            "languages": "Русский, английский",
+            "searchUrl": ""
+          }
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "purpose": "main",
+      "status": "completed",
+      "executedAt": "2026-11-10T10:15:00+03:00",
+      "timeZone": "Europe/Moscow",
+      "reportedHits": 37,
+      "reportedHitsApproximate": true,
+      "screenedRecords": 20,
+      "selectedRecords": 5,
+      "exportedRecords": 30,
+      "durationMinutes": 25,
+      "resultUrl": "",
+      "exportPath": "Пример/выгрузка.ris",
+      "zoteroLink": "",
+      "notes": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса.",
+      "id": "24e9bb0f-fc95-471d-b1a4-2179ab0f4aa4",
+      "strategyId": "935c591a-0f67-49f2-b3e1-265bda86ff39",
+      "strategyTitle": "Прогнозирование отказов оборудования",
+      "queryRevisionId": "2c8e107f-bd61-4d12-9332-1e2ac6bc370d",
+      "queryRevisionNumber": 1,
+      "definition": {
+        "database": "Демонстрационная база",
+        "platform": "Учебная площадка — поиск не выполнялся",
+        "query": "(\"telecommunication equipment\" OR \"network equipment\") AND (\"failure prediction\" OR \"fault prediction\")",
+        "searchFields": "Название, аннотация, ключевые слова (пример)",
+        "filters": "Без ограничений по типу — учебное значение",
+        "publicationRange": "2020–2026",
+        "languages": "Русский, английский",
+        "searchUrl": ""
+      },
+      "recordedAt": "2026-11-11T17:29:54.488Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "history": [
+        {
+          "changedAt": "2026-11-11T17:29:54.488Z",
+          "reason": "Учебное исправление количества отобранных записей.",
+          "previous": {
+            "purpose": "main",
+            "status": "completed",
+            "executedAt": "2026-11-10T10:15:00+03:00",
+            "timeZone": "Europe/Moscow",
+            "reportedHits": 37,
+            "reportedHitsApproximate": true,
+            "screenedRecords": 20,
+            "selectedRecords": 4,
+            "exportedRecords": 30,
+            "durationMinutes": 25,
+            "resultUrl": "",
+            "exportPath": "Пример/выгрузка.ris",
+            "zoteroLink": "",
+            "notes": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса.",
+            "id": "24e9bb0f-fc95-471d-b1a4-2179ab0f4aa4",
+            "strategyId": "935c591a-0f67-49f2-b3e1-265bda86ff39",
+            "strategyTitle": "Прогнозирование отказов оборудования",
+            "queryRevisionId": "2c8e107f-bd61-4d12-9332-1e2ac6bc370d",
+            "queryRevisionNumber": 1,
+            "definition": {
+              "database": "Демонстрационная база",
+              "platform": "Учебная площадка — поиск не выполнялся",
+              "query": "(\"telecommunication equipment\" OR \"network equipment\") AND (\"failure prediction\" OR \"fault prediction\")",
+              "searchFields": "Название, аннотация, ключевые слова (пример)",
+              "filters": "Без ограничений по типу — учебное значение",
+              "publicationRange": "2020–2026",
+              "languages": "Русский, английский",
+              "searchUrl": ""
+            },
+            "recordedAt": "2026-11-11T17:29:54.488Z",
+            "updatedAt": "2026-11-11T17:29:54.488Z"
+          }
+        }
+      ]
+    },
+    {
+      "purpose": "update",
+      "status": "completed",
+      "executedAt": "2026-11-11",
+      "timeZone": "Europe/Moscow",
+      "reportedHits": 58,
+      "reportedHitsApproximate": true,
+      "screenedRecords": 15,
+      "selectedRecords": 6,
+      "exportedRecords": 45,
+      "durationMinutes": 18,
+      "resultUrl": "",
+      "exportPath": "",
+      "zoteroLink": "",
+      "notes": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса.",
+      "id": "8f2a877c-3e29-4851-8f2d-826124215e75",
+      "strategyId": "935c591a-0f67-49f2-b3e1-265bda86ff39",
+      "strategyTitle": "Прогнозирование отказов оборудования",
+      "queryRevisionId": "0af37bf4-8838-4819-9537-c0d501b3220a",
+      "queryRevisionNumber": 2,
+      "definition": {
+        "database": "Демонстрационная база",
+        "platform": "Учебная площадка — поиск не выполнялся",
+        "query": "(\"telecommunication equipment\" OR \"network equipment\") AND (\"failure prediction\" OR \"condition monitoring\")",
+        "searchFields": "Название, аннотация, ключевые слова (пример)",
+        "filters": "Без ограничений по типу — учебное значение",
+        "publicationRange": "2020–2026",
+        "languages": "Русский, английский",
+        "searchUrl": ""
+      },
+      "recordedAt": "2026-11-11T17:29:54.488Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "history": []
+    },
+    {
+      "purpose": "pilot",
+      "status": "partial",
+      "executedAt": "2026-11-11",
+      "timeZone": "Europe/Moscow",
+      "reportedHits": null,
+      "reportedHitsApproximate": false,
+      "screenedRecords": 0,
+      "selectedRecords": 0,
+      "exportedRecords": null,
+      "durationMinutes": null,
+      "resultUrl": "",
+      "exportPath": "",
+      "zoteroLink": "",
+      "notes": "УЧЕБНЫЙ ПРИМЕР. Поиск не выполнялся. Все числа вымышлены и показывают возможности интерфейса. Пустая выдача означает неизвестное значение; просмотрено 0 — известный ноль.",
+      "id": "5b8c9acf-f2a5-4178-8133-44d4b3f18e8a",
+      "strategyId": "e77e34fe-a079-47d7-9e3b-ea2dd7675cb9",
+      "strategyTitle": "Диагностика SFP/SFP+",
+      "queryRevisionId": "469ee1f6-b6d0-46d1-abba-1adf8fb6b1d6",
+      "queryRevisionNumber": 1,
+      "definition": {
+        "database": "Демонстрационная база",
+        "platform": "Учебная площадка — поиск не выполнялся",
+        "query": "(SFP OR \"SFP+\") AND (\"failure prediction\" OR degradation)",
+        "searchFields": "Название, аннотация, ключевые слова (пример)",
+        "filters": "Без ограничений по типу — учебное значение",
+        "publicationRange": "2020–2026",
+        "languages": "Русский, английский",
+        "searchUrl": ""
+      },
+      "recordedAt": "2026-11-11T17:29:54.488Z",
+      "updatedAt": "2026-11-11T17:29:54.488Z",
+      "history": []
+    }
+  ]
+}
