@@ -1,13 +1,14 @@
-import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Menu, Notice, type WorkspaceLeaf } from 'obsidian';
 import { getStats, lastRevision, type KnownTotal, type RunInput, type SearchRun, type Strategy, type StrategyStatus } from './model';
 import { VIEW_TYPE, type ExportFormat, type ProjectEntry, type SearchHost } from './contracts';
 import {
-  ProjectModal, StrategyModal, RunModal, RevisionHistoryModal,
+  ImportProjectModal, MaterialModal, ProjectModal, StrategyModal, RunModal, RevisionHistoryModal,
   STRATEGY_LABELS, PURPOSE_LABELS, RUN_STATUS_LABELS,
   copyQuery, countText, displayDate, displaySearchDate, renderDefinition,
 } from './modals';
+import { MATERIAL_DECISIONS, MATERIAL_KINDS, READING_STATUSES, type Material } from './materials';
 
-type Tab = 'strategies' | 'journal';
+type Tab = 'strategies' | 'journal' | 'materials';
 interface Filters {
   text: string;
   platform: string;
@@ -17,11 +18,15 @@ interface Filters {
   strategyId: string;
   dateFrom: string;
   dateTo: string;
+  materialKind: string;
+  readingStatus: string;
+  materialDecision: string;
+  materialRunId: string;
 }
 
 const emptyFilters = (): Filters => ({
   text: '', platform: '', strategyStatus: '', purpose: '', runStatus: '',
-  strategyId: '', dateFrom: '', dateTo: '',
+  strategyId: '', dateFrom: '', dateTo: '', materialKind: '', readingStatus: '', materialDecision: '', materialRunId: '',
 });
 
 function errorMessage(error: unknown): string {
@@ -75,6 +80,7 @@ function safeLink(parent: HTMLElement, label: string, value: string, zotero = fa
 }
 
 export class ResearchSearchView extends ItemView {
+  private projectMenu?: Menu;
   private entries: ProjectEntry[] = [];
   private selectedId = '';
   private renderedId = '';
@@ -107,6 +113,12 @@ export class ResearchSearchView extends ItemView {
   private journalFilterRow!: HTMLElement;
   private strategyTab!: HTMLButtonElement;
   private journalTab!: HTMLButtonElement;
+  private materialsTab!: HTMLButtonElement;
+  private materialFilterRow!: HTMLElement;
+  private materialKindSelect!: HTMLSelectElement;
+  private materialReadingSelect!: HTMLSelectElement;
+  private materialDecisionSelect!: HTMLSelectElement;
+  private materialRunSelect!: HTMLSelectElement;
   private addButton!: HTMLButtonElement;
   private exportButton!: HTMLButtonElement;
   private exportSelect!: HTMLSelectElement;
@@ -126,12 +138,12 @@ export class ResearchSearchView extends ItemView {
     const brand = top.createDiv();
     brand.createDiv({ cls: 'rss-eyebrow', text: 'SearchTrail' });
     brand.createEl('h1', { text: 'Поисковая стратегия' });
-    brand.createEl('p', { cls: 'rss-muted', text: 'Запросы, версии и журнал поиска литературы' });
+    brand.createEl('p', { cls: 'rss-muted', text: 'Запросы, журнал поиска и материалы для исследований и работы' });
     const actions = top.createDiv({ cls: 'rss-actions' });
     button(actions, 'Обновить', () => { void this.refreshProjects(); });
-    button(actions, 'Новый проект', () => this.newProject());
+    this.projectMenuButton(actions, 'Новый проект');
     const projectPicker = this.contentEl.createDiv({ cls: 'rss-project-picker' });
-    this.picker = labelSelect(projectPicker, 'Исследовательский проект');
+    this.picker = labelSelect(projectPicker, 'Поисковый проект');
     this.picker.addEventListener('change', () => {
       this.selectedId = this.picker.value;
       this.filters = emptyFilters();
@@ -148,6 +160,7 @@ export class ResearchSearchView extends ItemView {
   }
 
   protected async onClose(): Promise<void> {
+    this.projectMenu?.hide();
     this.opened = false;
     this.loadSequence += 1;
     this.unsubscribe?.();
@@ -165,6 +178,34 @@ export class ResearchSearchView extends ItemView {
   };
 
   private newProject(): void { new ProjectModal(this.host, undefined, this.afterSaved).open(); }
+
+  private importProject(): void {
+    new ImportProjectModal(this.app, async project => {
+      const entry = await this.host.importProject(project);
+      this.afterSaved(entry);
+      new Notice(`Импортирован проект «${entry.project.title}».`);
+    }).open();
+  }
+
+  private projectMenuButton(parent: HTMLElement, label: string, primary = false): void {
+    const trigger = button(parent, label, () => {
+      this.projectMenu?.hide();
+      const menu = new Menu();
+      this.projectMenu = menu;
+      menu.addItem(item => item.setTitle('Создать пустой проект').setIcon('plus').onClick(() => this.newProject()));
+      menu.addItem(item => item.setTitle('Импортировать из JSON').setIcon('file-input').onClick(() => this.importProject()));
+      menu.onHide(() => {
+        trigger.setAttribute('aria-expanded', 'false');
+        if (this.projectMenu === menu) this.projectMenu = undefined;
+      });
+      trigger.setAttribute('aria-expanded', 'true');
+      const bounds = trigger.getBoundingClientRect();
+      menu.showAtPosition({ x: bounds.left, y: bounds.bottom }, trigger.ownerDocument);
+    }, primary);
+    trigger.addClass('rss-menu-trigger');
+    trigger.setAttribute('aria-haspopup', 'menu');
+    trigger.setAttribute('aria-expanded', 'false');
+  }
 
   private async refreshProjects(): Promise<void> {
     const sequence = ++this.loadSequence;
@@ -196,9 +237,9 @@ export class ResearchSearchView extends ItemView {
       this.projectArea.empty();
       const empty = this.projectArea.createDiv({ cls: 'rss-empty rss-welcome' });
       empty.createDiv({ cls: 'rss-empty-symbol', text: '+' });
-      empty.createEl('h2', { text: 'Начните с исследовательского вопроса' });
-      empty.createEl('p', { text: 'Создайте проект, сохраните первый запрос и запишите результат его выполнения. Версии помогут восстановить условия каждого поиска.' });
-      button(empty, 'Создать первый проект', () => this.newProject(), true);
+      empty.createEl('h2', { text: 'Начните с цели поиска' });
+      empty.createEl('p', { text: 'Создайте проект для исследования или рабочей задачи. Сохраняйте запросы, выполнения и найденные материалы.' });
+      this.projectMenuButton(empty, 'Создать первый проект', true);
       empty.createEl('p', { cls: 'rss-muted rss-small', text: 'Проекты появятся в выбранной папке данных после создания.' });
       return;
     }
@@ -225,13 +266,16 @@ export class ResearchSearchView extends ItemView {
     tabs.setAttribute('aria-label', 'Раздел проекта');
     this.strategyTab = button(tabs, 'Запросы', () => this.setTab('strategies'));
     this.journalTab = button(tabs, 'Журнал', () => this.setTab('journal'));
+    this.materialsTab = button(tabs, 'Материалы', () => this.setTab('materials'));
     this.strategyTab.setAttribute('role', 'tab');
     this.journalTab.setAttribute('role', 'tab');
+    this.materialsTab.setAttribute('role', 'tab');
     this.addButton = button(sectionHead, 'Новый запрос', () => {
       const entry = this.entry;
       if (!entry) return;
       if (this.activeTab === 'strategies') new StrategyModal(this.host, entry, undefined, this.afterSaved).open();
-      else new RunModal(this.host, entry, undefined, undefined, this.afterSaved).open();
+      else if (this.activeTab === 'journal') new RunModal(this.host, entry, undefined, undefined, this.afterSaved).open();
+      else new MaterialModal(this.host, entry, undefined, this.afterSaved).open();
     }, true);
 
     const filters = this.projectArea.createDiv({ cls: 'rss-filters' });
@@ -270,6 +314,19 @@ export class ResearchSearchView extends ItemView {
     this.dateToInput = labelInput(this.journalFilterRow, 'По дату', 'date');
     this.dateToInput.value = this.filters.dateTo;
     this.dateToInput.addEventListener('change', () => { this.filters.dateTo = this.dateToInput.value; this.filtersChanged(); });
+
+    this.materialFilterRow = filters.createDiv({ cls: 'rss-filter-row' });
+    this.materialKindSelect = labelSelect(this.materialFilterRow, 'Тип материала');
+    options(this.materialKindSelect, [['', 'Все типы'], ...Object.entries(MATERIAL_KINDS)], this.filters.materialKind);
+    this.materialKindSelect.addEventListener('change', () => { this.filters.materialKind = this.materialKindSelect.value; this.filtersChanged(); });
+    this.materialReadingSelect = labelSelect(this.materialFilterRow, 'Чтение / просмотр');
+    options(this.materialReadingSelect, [['', 'Все состояния'], ...Object.entries(READING_STATUSES)], this.filters.readingStatus);
+    this.materialReadingSelect.addEventListener('change', () => { this.filters.readingStatus = this.materialReadingSelect.value; this.filtersChanged(); });
+    this.materialDecisionSelect = labelSelect(this.materialFilterRow, 'Решение по материалу');
+    options(this.materialDecisionSelect, [['', 'Все решения'], ...Object.entries(MATERIAL_DECISIONS)], this.filters.materialDecision);
+    this.materialDecisionSelect.addEventListener('change', () => { this.filters.materialDecision = this.materialDecisionSelect.value; this.filtersChanged(); });
+    this.materialRunSelect = labelSelect(this.materialFilterRow, 'Найден в выполнении');
+    this.materialRunSelect.addEventListener('change', () => { this.filters.materialRunId = this.materialRunSelect.value; this.filtersChanged(); });
     this.filterFeedback = filters.createDiv({ cls: 'rss-form-error' });
     this.filterFeedback.setAttribute('role', 'alert');
     this.filterFeedback.hidden = true;
@@ -283,11 +340,11 @@ export class ResearchSearchView extends ItemView {
     const exportArea = this.projectArea.createDiv({ cls: 'rss-export-bar' });
     const exportCopy = exportArea.createDiv();
     exportCopy.createEl('strong', { text: 'Экспорт проекта' });
-    exportCopy.createEl('p', { cls: 'rss-muted rss-small', text: 'Все запросы, версии и выполнения проекта; текущие фильтры не ограничивают экспорт.' });
+    exportCopy.createEl('p', { cls: 'rss-muted rss-small', text: 'JSON переносит весь проект с материалами. CSV журнала и CSV материалов экспортируются отдельно; фильтры не ограничивают экспорт.' });
     const controls = exportArea.createDiv({ cls: 'rss-actions' });
     this.exportSelect = controls.createEl('select');
     this.exportSelect.setAttribute('aria-label', 'Формат экспорта');
-    options(this.exportSelect, [['markdown', 'Markdown — отчёт'], ['csv', 'CSV — журнал'], ['json', 'JSON — полные данные']], 'markdown');
+    options(this.exportSelect, [['markdown', 'Markdown — отчёт'], ['csv', 'CSV — журнал'], ['materials-csv', 'CSV — материалы'], ['json', 'JSON — полные данные']], 'markdown');
     this.exportButton = button(controls, 'Экспортировать', () => { void this.exportCurrent(); });
   }
 
@@ -311,7 +368,7 @@ export class ResearchSearchView extends ItemView {
       details.createEl('summary', { text: 'Вопрос, критерии отбора и учёт повторов' });
       const body = details.createDiv({ cls: 'rss-disclosure-body' });
       for (const [label, value] of [
-        ['Исследовательский вопрос', entry.project.question], ['Критерии отбора', entry.project.criteria],
+        ['Цель / вопрос поиска', entry.project.question], ['Критерии отбора', entry.project.criteria],
         ['Учёт повторных записей', entry.project.deduplicationNotes],
       ]) {
         if (!value) continue;
@@ -351,6 +408,8 @@ export class ResearchSearchView extends ItemView {
     options(this.platformSelect, [['', 'Все платформы'], ...[...platforms].sort((a, b) => a.localeCompare(b, 'ru')).map(value => [value, value] as [string, string])], this.filters.platform);
     if (this.filters.strategyId && !entry.project.strategies.some(strategy => strategy.id === this.filters.strategyId)) this.filters.strategyId = '';
     options(this.strategySelect, [['', 'Все запросы'], ...entry.project.strategies.map(strategy => [strategy.id, strategy.title] as [string, string])], this.filters.strategyId);
+    if (this.filters.materialRunId && !entry.project.runs.some(run => run.id === this.filters.materialRunId)) this.filters.materialRunId = '';
+    options(this.materialRunSelect, [['', 'Все выполнения'], ...entry.project.runs.map(run => [run.id, `${run.executedAt} · ${run.strategyTitle} · v${run.queryRevisionNumber}`] as [string, string])], this.filters.materialRunId);
   }
 
   private setTab(tab: Tab): void {
@@ -361,13 +420,19 @@ export class ResearchSearchView extends ItemView {
 
   private updateTabs(): void {
     const journal = this.activeTab === 'journal';
-    this.strategyTab.toggleClass('is-active', !journal);
+    const materials = this.activeTab === 'materials';
+    this.strategyTab.toggleClass('is-active', !journal && !materials);
     this.journalTab.toggleClass('is-active', journal);
-    this.strategyTab.setAttribute('aria-selected', String(!journal));
+    this.materialsTab.toggleClass('is-active', materials);
+    this.strategyTab.setAttribute('aria-selected', String(!journal && !materials));
     this.journalTab.setAttribute('aria-selected', String(journal));
-    this.strategyFilterRow.hidden = journal;
+    this.materialsTab.setAttribute('aria-selected', String(materials));
+    this.strategyFilterRow.hidden = journal || materials;
     this.journalFilterRow.hidden = !journal;
-    this.addButton.setText(journal ? 'Записать выполнение' : 'Новый запрос');
+    this.materialFilterRow.hidden = !materials;
+    this.platformSelect.parentElement!.hidden = materials;
+    this.textInput.placeholder = materials ? 'Название, авторы, DOI, заметки…' : 'Название, текст запроса, комментарий…';
+    this.addButton.setText(materials ? 'Добавить материал' : journal ? 'Записать выполнение' : 'Новый запрос');
     this.addButton.disabled = journal && !this.entry?.project.strategies.length;
   }
 
@@ -379,7 +444,8 @@ export class ResearchSearchView extends ItemView {
   private resetFilters(): void {
     this.filters = emptyFilters();
     for (const el of [this.textInput, this.platformSelect, this.strategyStatusSelect, this.strategySelect,
-      this.purposeSelect, this.runStatusSelect, this.dateFromInput, this.dateToInput]) el.value = '';
+      this.purposeSelect, this.runStatusSelect, this.dateFromInput, this.dateToInput, this.materialKindSelect,
+      this.materialReadingSelect, this.materialDecisionSelect, this.materialRunSelect]) el.value = '';
     this.filtersChanged();
   }
 
@@ -389,6 +455,26 @@ export class ResearchSearchView extends ItemView {
     this.results.empty();
     this.filterFeedback.hidden = true;
     const needle = this.filters.text.trim().toLocaleLowerCase('ru-RU');
+    if (this.activeTab === 'materials') {
+      const materials = entry.catalog?.materials ?? [];
+      const visible = materials.filter(material => (!this.filters.materialKind || material.kind === this.filters.materialKind)
+        && (!this.filters.readingStatus || material.readingStatus === this.filters.readingStatus)
+        && (!this.filters.materialDecision || material.decision === this.filters.materialDecision)
+        && (!this.filters.materialRunId || material.runIds.includes(this.filters.materialRunId))
+        && (!needle || searchText([material.title, material.authors, material.doi, material.url, material.notes, material.exclusionReason, material.year?.toString() ?? '']).includes(needle)));
+      this.resultsCount.setText(`Материалов: ${visible.length} из ${materials.length}`);
+      this.results.createEl('p', { cls: 'rss-muted rss-small', text: 'Это вручную добавленные карточки. Материал может быть связан с несколькими поисками; счётчики выполнений не пересчитываются.' });
+      if (!visible.length) {
+        this.emptyResults(materials.length ? 'Материалы не найдены' : 'Добавьте первый материал',
+          materials.length ? 'Попробуйте изменить фильтры.' : 'Подойдёт статья, документация, отчёт или веб-страница. Обязательно только название.',
+          !materials.length ? () => new MaterialModal(this.host, entry, undefined, this.afterSaved).open() : undefined);
+        return;
+      }
+      const grid = this.results.createDiv({ cls: 'rss-strategy-grid' });
+      for (const material of visible.slice(0, this.runLimit)) this.renderMaterial(grid, entry, material);
+      if (visible.length > this.runLimit) button(this.results, 'Показать ещё материалы', () => { this.runLimit += 50; this.renderResults(); });
+      return;
+    }
     if (this.activeTab === 'strategies') {
       const visible = entry.project.strategies.filter(strategy => {
         const definition = lastRevision(strategy).definition;
@@ -448,6 +534,45 @@ export class ResearchSearchView extends ItemView {
     empty.createEl('h3', { text: title });
     empty.createEl('p', { text: description });
     if (action) button(empty, actionLabel, action, true);
+  }
+
+  private renderMaterial(parent: HTMLElement, entry: ProjectEntry, material: Material): void {
+    const card = parent.createDiv({ cls: 'rss-strategy-card rss-material-card' });
+    card.createEl('h3', { text: material.title });
+    card.createEl('p', { cls: 'rss-card-meta', text: [MATERIAL_KINDS[material.kind], material.authors, material.year?.toString() ?? ''].filter(Boolean).join(' · ') });
+    card.createEl('p', { cls: 'rss-small', text: `${READING_STATUSES[material.readingStatus]} · ${MATERIAL_DECISIONS[material.decision]}` });
+    if (material.decision === 'excluded' && material.exclusionReason) card.createEl('p', { cls: 'rss-preserve-lines', text: `Причина исключения: ${material.exclusionReason}` });
+    if (material.doi) card.createEl('p', { cls: 'rss-small', text: `DOI: ${material.doi}` });
+    safeLink(card, 'Открыть источник', material.url);
+    if (material.notes) card.createEl('p', { cls: 'rss-preserve-lines rss-small', text: material.notes });
+    const actions = card.createDiv({ cls: 'rss-actions rss-card-actions' });
+    button(actions, 'Изменить материал', () => new MaterialModal(this.host, entry, material, this.afterSaved).open());
+    for (const [label, path] of [['Открыть файл', material.filePath], ['Открыть заметку материала', material.notePath]]) {
+      if (path) button(actions, label, () => { void this.host.openNote(path).catch(error => this.showError(error)); });
+    }
+    if (material.strategyIds.length || material.runIds.length || material.history.length) {
+      const details = card.createEl('details', { cls: 'rss-disclosure rss-card-detail' });
+      details.createEl('summary', { text: 'Источники обнаружения и история материала' });
+      const body = details.createDiv({ cls: 'rss-disclosure-body' });
+      for (const id of material.strategyIds) {
+        const strategy = entry.project.strategies.find(item => item.id === id);
+        body.createEl('p', { text: `Запрос: ${strategy?.title ?? id}` });
+      }
+      for (const id of material.runIds) {
+        const run = entry.project.runs.find(item => item.id === id);
+        body.createEl('p', { text: run ? `Выполнение: ${displaySearchDate(run.executedAt)} · ${run.strategyTitle} · версия ${run.queryRevisionNumber}` : id });
+      }
+      for (const change of [...material.history].reverse()) {
+        body.createEl('h4', { text: `До изменения ${displayDate(change.changedAt)}` });
+        const previous = change.previous;
+        body.createEl('p', { text: `${previous.title} · ${MATERIAL_KINDS[previous.kind]} · ${READING_STATUSES[previous.readingStatus]} · ${MATERIAL_DECISIONS[previous.decision]}` });
+        for (const [label, value] of [['Авторы / организация', previous.authors], ['Год', previous.year?.toString() ?? ''],
+          ['DOI', previous.doi], ['Ссылка', previous.url], ['Файл', previous.filePath], ['Заметка', previous.notePath],
+          ['Причина исключения', previous.exclusionReason], ['Заметки о материале', previous.notes]]) {
+          if (value) body.createEl('p', { cls: 'rss-preserve-lines', text: `${label}: ${value}` });
+        }
+      }
+    }
   }
 
   private renderStrategy(parent: HTMLElement, entry: ProjectEntry, strategy: Strategy): void {

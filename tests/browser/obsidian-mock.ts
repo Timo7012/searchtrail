@@ -46,6 +46,43 @@ extend(HTMLElement.prototype, 'removeClass', function (this: HTMLElement, ...nam
 extend(HTMLElement.prototype, 'toggleClass', function (this: HTMLElement, name: string, value: boolean) { this.classList.toggle(name, value); });
 
 export class App {}
+
+export class MenuItem {
+  title = '';
+  callback: () => unknown = () => {};
+  setTitle(title: string): this { this.title = title; return this; }
+  setIcon(_icon: string): this { return this; }
+  onClick(callback: () => unknown): this { this.callback = callback; return this; }
+}
+
+/** Only the public Menu surface used by the view; native layout is not simulated. */
+export class Menu {
+  private items: MenuItem[] = [];
+  private element?: HTMLElement;
+  private didHide?: () => unknown;
+  addItem(callback: (item: MenuItem) => unknown): this {
+    const item = new MenuItem();
+    callback(item);
+    this.items.push(item);
+    return this;
+  }
+  onHide(callback: () => unknown): void { this.didHide = callback; }
+  showAtPosition(_position: { x: number; y: number }, doc = document): this {
+    this.element = createElement(doc.body, 'div', { attr: { role: 'menu' } });
+    for (const item of this.items) {
+      const button = createElement(this.element, 'button', { text: item.title, attr: { role: 'menuitem' } });
+      button.onclick = () => { this.hide(); void item.callback(); };
+    }
+    return this;
+  }
+  hide(): this {
+    this.element?.remove();
+    this.element = undefined;
+    this.didHide?.();
+    return this;
+  }
+}
+
 export interface WorkspaceLeaf { app: App }
 
 export class ItemView {

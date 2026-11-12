@@ -1,8 +1,17 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
-import { createProject, parseProject, type Project, type ProjectInput } from './model';
-import { projectToCsv, projectToJson, projectToMarkdown } from './exports';
+import { createProject, type Project, type ProjectInput } from './model';
+import { projectToCsv, projectToMarkdown } from './exports';
+import { parseProjectTransfer, projectTransferToJson } from './transfer';
+import { emptyCatalog, validateMaterialPath, type MaterialCatalog } from './materials';
+import { materialsToCsv, materialsToMarkdown } from './material-exports';
 import type { ExportFormat, ProjectEntry } from './contracts';
-import { createProjectDocument, DOCUMENT_SIGNATURE, projectFingerprint, readProjectDocument, updateProjectDocument } from './storage';
+import { catalogFingerprint, createProjectDocument, DOCUMENT_SIGNATURE, projectFingerprint, readMaterialCatalog, readProjectDocument, updateMaterialCatalogDocument, updateProjectDocument } from './storage';
+
+function entryFromText(path: string, text: string): ProjectEntry {
+  const project = readProjectDocument(text);
+  const catalog = readMaterialCatalog(text, project);
+  return { path, project, fingerprint: projectFingerprint(project), ...(catalog ? { catalog, catalogFingerprint: catalogFingerprint(catalog) } : {}) };
+}
 
 export function validateDataFolder(value: string, configDir = '.obsidian'): string {
   const raw = value.trim().replace(/\\/g, '/');
@@ -56,8 +65,7 @@ export class ProjectRepository {
       try {
         const content = await this.app.vault.read(file);
         if (!content.includes(DOCUMENT_SIGNATURE)) continue;
-        const project = readProjectDocument(content);
-        entries.push({ path: file.path, project, fingerprint: projectFingerprint(project) });
+        entries.push(entryFromText(file.path, content));
       } catch (error) { warnings.push(`${file.path}: ${error instanceof Error ? error.message : String(error)}`); }
     }
     return { entries, warnings };
@@ -77,7 +85,8 @@ export class ProjectRepository {
   async create(input: ProjectInput): Promise<ProjectEntry> { return this.importProject(createProject(input)); }
 
   async importProject(value: unknown): Promise<ProjectEntry> {
-    const project = parseProject(value);
+    const { project, catalog } = parseProjectTransfer(value);
+    if (catalog) this.validateMaterialPaths(catalog);
     return this.serialized(async () => {
       const folder = this.getFolder();
       const { entries: existing, warnings } = await this.scanProjects(folder);
@@ -89,8 +98,9 @@ export class ProjectRepository {
       if (!safeId) throw new Error('Непригодный ID проекта.');
       const path = normalizePath(`${folder}/search-${slug(project.title)}--${safeId}.md`);
       if (this.getFolder() !== folder) throw new Error('Папка проектов изменилась во время импорта. Повторите операцию.');
-      await this.app.vault.create(path, createProjectDocument(project));
-      return { path, project, fingerprint: projectFingerprint(project) };
+      const content = createProjectDocument(project, catalog);
+      await this.app.vault.create(path, content);
+      return entryFromText(path, content);
     });
   }
 
@@ -104,8 +114,31 @@ export class ProjectRepository {
         if (this.getFolder() !== folder) throw new Error('Папка проектов изменилась. Обновите панель.');
         return updateProjectDocument(text, next, expectedRevision, expectedFingerprint);
       });
-      const project = readProjectDocument(result);
-      return { path, project, fingerprint: projectFingerprint(project) };
+      return entryFromText(path, result);
+    });
+  }
+
+  private validateMaterialPaths(catalog: MaterialCatalog): void {
+    for (const material of catalog.materials) {
+      for (const state of [material, ...material.history.map(change => change.previous)]) {
+        validateMaterialPath(state.filePath, this.app.vault.configDir);
+        validateMaterialPath(state.notePath, this.app.vault.configDir);
+      }
+    }
+  }
+
+  async saveMaterials(entry: ProjectEntry, catalog: MaterialCatalog): Promise<ProjectEntry> {
+    this.validateMaterialPaths(catalog);
+    return this.serialized(async () => {
+      const folder = this.getFolder();
+      if (!entry.path.startsWith(folder + '/')) throw new Error('Папка проектов изменилась. Обновите панель.');
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) throw new Error('Файл проекта не найден.');
+      const result = await this.app.vault.process(file, text => {
+        if (this.getFolder() !== folder) throw new Error('Папка проектов изменилась. Обновите панель.');
+        return updateMaterialCatalogDocument(text, catalog, entry.project.revision, entry.fingerprint, entry.catalogFingerprint ?? null);
+      });
+      return entryFromText(entry.path, result);
     });
   }
 
@@ -115,16 +148,20 @@ export class ProjectRepository {
       if (!entry.path.startsWith(folder + '/')) throw new Error('Проект больше не находится в настроенной папке. Обновите панель.');
       const file = this.app.vault.getAbstractFileByPath(entry.path);
       if (!(file instanceof TFile)) throw new Error('Файл проекта не найден.');
-      const project = readProjectDocument(await this.app.vault.read(file));
+      const current = entryFromText(file.path, await this.app.vault.read(file));
+      const { project, catalog } = current;
       const outputFolder = folder + '/Exports';
       await this.ensureFolder(outputFolder);
-      const extension = format === 'markdown' ? 'md' : format;
+      const extension = format === 'markdown' ? 'md' : format === 'materials-csv' ? 'csv' : format;
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const base = `${outputFolder}/search-${slug(project.title)}-${stamp}`;
+      const base = `${outputFolder}/${format === 'materials-csv' ? 'materials' : 'search'}-${slug(project.title)}-${stamp}`;
       let path = `${base}.${extension}`;
       let index = 2;
       while (this.app.vault.getAbstractFileByPath(path)) path = `${base}-${index++}.${extension}`;
-      const content = format === 'csv' ? projectToCsv(project) : format === 'json' ? projectToJson(project) : projectToMarkdown(project);
+      const content = format === 'csv' ? projectToCsv(project)
+        : format === 'materials-csv' ? materialsToCsv(catalog ?? emptyCatalog(project.id))
+        : format === 'json' ? projectTransferToJson(project, catalog)
+        : projectToMarkdown(project) + (catalog ? '\n' + materialsToMarkdown(catalog) : '');
       if (this.getFolder() !== folder) throw new Error('Папка проектов изменилась во время экспорта. Повторите операцию.');
       await this.app.vault.create(path, content);
       return path;

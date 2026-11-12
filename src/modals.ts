@@ -5,6 +5,8 @@ import {
   type SearchRun, type Strategy, type StrategyInput, type StrategyStatus,
 } from './model';
 import type { ProjectEntry, SearchHost } from './contracts';
+import { parseProjectTransfer } from './transfer';
+import { addMaterial, editMaterial, emptyCatalog, emptyMaterial, materialInput, MATERIAL_DECISIONS, MATERIAL_KINDS, READING_STATUSES, type Material } from './materials';
 
 export const STRATEGY_LABELS: Record<StrategyStatus, string> = {
   draft: 'Черновик', active: 'В работе', paused: 'Приостановлен', done: 'Завершён',
@@ -205,16 +207,16 @@ export class ProjectModal extends SaveModal {
   }
 
   onOpen(): void {
-    this.prepare(this.entry ? 'Настройки проекта' : 'Новый исследовательский проект');
+    this.prepare(this.entry ? 'Настройки проекта' : 'Новый поисковый проект');
     const input: ProjectInput = this.entry ? {
       title: this.entry.project.title, question: this.entry.project.question,
       criteria: this.entry.project.criteria, deduplicationNotes: this.entry.project.deduplicationNotes,
     } : { title: '', question: '', criteria: '', deduplicationNotes: '' };
     textField(this.contentEl, 'Название *', input.title, value => { input.title = value; }, '', 'Например, прогнозирование отказов SFP');
-    areaField(this.contentEl, 'Исследовательский вопрос', input.question, value => { input.question = value; },
+    areaField(this.contentEl, 'Цель / вопрос поиска', input.question, value => { input.question = value; },
       'Что нужно выяснить по результатам поиска?', 3);
     areaField(this.contentEl, 'Критерии отбора', input.criteria, value => { input.criteria = value; },
-      'Условия включения и исключения публикаций.', 4);
+      'Необязательно. Условия отбора статей, документов, страниц и других материалов.', 4);
     areaField(this.contentEl, 'Учёт повторных записей', input.deduplicationNotes, value => { input.deduplicationNotes = value; },
       'Где и как вы объединяете результаты и удаляете дубликаты.', 3);
     this.actions(this.entry ? 'Сохранить проект' : 'Создать проект', async () => {
@@ -475,6 +477,78 @@ export class RunModal extends SaveModal {
         : addRun(this.entry.project, strategyId, revisionId, input);
       const result = await this.host.saveProject(this.entry.path, this.entry.project.revision, next, this.entry.fingerprint);
       this.saved?.(result);
+    });
+  }
+}
+
+export class ImportProjectModal extends Modal {
+  private content = '';
+  private busy = false;
+  constructor(app: App, private importer: (project: unknown) => Promise<void>) { super(app); }
+  onOpen(): void {
+    this.contentEl.addClass('rss-modal');
+    this.contentEl.createEl('h2', { text: 'Импортировать проект из JSON' });
+    this.contentEl.createEl('p', { text: 'Выберите экспорт проекта SearchTrail или вставьте его JSON. Идентификаторы и история сохраняются; существующий проект не будет перезаписан.' });
+    const picker = this.contentEl.createEl('input', { type: 'file', attr: { accept: '.json,application/json', 'aria-label': 'Файл проекта JSON' } });
+    const area = this.contentEl.createEl('textarea', { cls: 'rss-import-area', attr: { rows: '12', placeholder: 'JSON проекта', 'aria-label': 'JSON проекта' } });
+    const error = this.contentEl.createDiv({ cls: 'rss-error', attr: { role: 'alert' } });
+    picker.onchange = async () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { error.setText('Размер файла превышает 10 МБ.'); return; }
+      try { this.content = await file.text(); area.value = this.content; error.setText(''); }
+      catch { error.setText('Не удалось прочитать выбранный файл.'); }
+    };
+    area.oninput = () => { this.content = area.value; };
+    new Setting(this.contentEl).addButton(button => button.setButtonText('Отмена').onClick(() => this.close())).addButton(button => button.setButtonText('Импортировать').setCta().onClick(async () => {
+      if (this.busy) return;
+      this.busy = true;
+      button.setDisabled(true);
+      error.setText('');
+      try {
+        if (this.content.length > 10 * 1024 * 1024) throw new Error('JSON превышает 10 МБ.');
+        const parsed: unknown = JSON.parse(this.content.replace(/^\uFEFF/, ''));
+        parseProjectTransfer(parsed);
+        await this.importer(parsed);
+        this.close();
+      } catch (problem) { error.setText(problem instanceof Error ? problem.message : String(problem)); }
+      finally { this.busy = false; button.setDisabled(false); }
+    }));
+  }
+  onClose(): void { this.contentEl.empty(); }
+}
+
+export class MaterialModal extends SaveModal {
+  constructor(private host: SearchHost, private entry: ProjectEntry, private material?: Material, private saved?: Saved) { super(host.app); }
+  onOpen(): void {
+    this.prepare(this.material ? 'Редактировать материал' : 'Новый материал');
+    const input = this.material ? materialInput(this.material) : emptyMaterial();
+    const catalog = this.entry.catalog ?? emptyCatalog(this.entry.project.id);
+    this.contentEl.createEl('p', { cls: 'rss-muted rss-small', text: 'Статья, документация, отчёт, веб-страница или другой материал. Обязательно только название; DOI и библиографические сведения можно оставить пустыми.' });
+    textField(this.contentEl, 'Название материала *', input.title, value => { input.title = value; });
+    selectField(this.contentEl, 'Тип материала', input.kind, MATERIAL_KINDS, value => { input.kind = value; });
+    textField(this.contentEl, 'Ссылка на материал', input.url, value => { input.url = value; }, 'Необязательно. Полный HTTP(S) адрес.');
+    selectField(this.contentEl, 'Чтение / просмотр', input.readingStatus, READING_STATUSES, value => { input.readingStatus = value; });
+    selectField(this.contentEl, 'Решение по материалу', input.decision, MATERIAL_DECISIONS, value => { input.decision = value; });
+    areaField(this.contentEl, 'Причина исключения', input.exclusionReason, value => { input.exclusionReason = value; }, 'Обязательна только для решения «Исключён».', 2);
+    areaField(this.contentEl, 'Заметки о материале', input.notes, value => { input.notes = value; }, '', 3);
+    const extra = disclosure(this.contentEl, 'Авторы, год, DOI и файлы', Boolean(input.authors || input.year || input.doi || input.filePath || input.notePath));
+    textField(extra, 'Авторы / организация', input.authors, value => { input.authors = value; });
+    let rawYear = input.year?.toString() ?? '';
+    textField(extra, 'Год материала', rawYear, value => { rawYear = value; }, 'Необязательно. Пустое поле означает неизвестный год.');
+    textField(extra, 'DOI', input.doi, value => { input.doi = value; }, 'Необязательно. Например, 10.1234/example.');
+    textField(extra, 'Файл материала', input.filePath, value => { input.filePath = value; }, 'Необязательно. Путь внутри хранилища, например Files/manual.pdf. Файл не копируется.');
+    textField(extra, 'Заметка материала', input.notePath, value => { input.notePath = value; }, 'Необязательно. Путь внутри хранилища, например Notes/manual.md.');
+    const sources = disclosure(this.contentEl, 'Связать с запросами и выполнениями', Boolean(input.strategyIds.length || input.runIds.length));
+    sources.createEl('p', { cls: 'rss-muted rss-small', text: 'Можно выбрать несколько источников обнаружения или оставить материал без привязки. Счётчики выполнений автоматически не меняются.' });
+    const links = (ids: string[], id: string, checked: boolean) => { if (checked) { if (!ids.includes(id)) ids.push(id); } else { const index = ids.indexOf(id); if (index >= 0) ids.splice(index, 1); } };
+    for (const strategy of this.entry.project.strategies) new Setting(sources).setName(`Запрос: ${strategy.title}`).addToggle(toggle => toggle.setValue(input.strategyIds.includes(strategy.id)).onChange(checked => links(input.strategyIds, strategy.id, checked)));
+    for (const run of this.entry.project.runs) new Setting(sources).setName(`Выполнение: ${run.executedAt} · ${run.strategyTitle} · v${run.queryRevisionNumber}`).addToggle(toggle => toggle.setValue(input.runIds.includes(run.id)).onChange(checked => links(input.runIds, run.id, checked)));
+    this.actions(this.material ? 'Сохранить материал' : 'Добавить материал', async () => {
+      input.year = optionalNumber(rawYear, 'Год материала', true);
+      const next = this.material ? editMaterial(catalog, this.entry.project, this.material.id, input) : addMaterial(catalog, this.entry.project, input);
+      const saved = await this.host.saveMaterials(this.entry, next);
+      this.saved?.(saved);
     });
   }
 }

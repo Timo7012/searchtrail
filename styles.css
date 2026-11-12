@@ -32,11 +32,39 @@
 .rss-view button, .rss-modal button { min-height: 32px; }
 .rss-view button { font-size: 12px; }
 .rss-view button:focus-visible, .rss-view a:focus-visible,
+.rss-view select:focus-visible, .rss-modal select:focus-visible,
 .rss-view summary:focus-visible, .rss-modal summary:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 3px;
 }
 .rss-view [hidden], .rss-modal [hidden] { display: none !important; }
+
+/* Keep the dropdown indicator visible even when the Obsidian theme removes it. */
+.rss-view select, .rss-modal select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='%23888' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  padding-inline-end: 36px;
+  cursor: pointer;
+}
+.rss-view select:dir(rtl), .rss-modal select:dir(rtl) { background-position: left 12px center; }
+.rss-view select:disabled, .rss-modal select:disabled { cursor: default; }
+.theme-dark .rss-view select, .theme-dark .rss-modal select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.rss-menu-trigger { display: inline-flex; align-items: center; gap: 10px; }
+.rss-menu-trigger::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
 
 .rss-project-picker { padding: 14px 16px; margin-bottom: 22px; background: var(--background-secondary); border-radius: var(--rss-radius); }
 .rss-project-picker .rss-filter { display: flex; flex-direction: row; align-items: center; gap: 16px; }
@@ -59,7 +87,32 @@
 .rss-stat-note { font-size: 11px; line-height: 1.55; color: var(--text-muted); margin: 10px 0 22px !important; max-width: 950px; }
 
 .rss-disclosure { border-top: 1px solid var(--background-modifier-border); margin-top: 12px; }
-.rss-disclosure > summary { padding: 12px 0; color: var(--text-muted); font-size: 12px; font-weight: 500; cursor: pointer; user-select: none; }
+.rss-view .rss-disclosure > summary, .rss-modal .rss-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  padding: 12px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+.rss-disclosure > summary::-webkit-details-marker { display: none; }
+.rss-disclosure > summary::marker { content: ''; }
+.rss-disclosure > summary::before {
+  content: '';
+  display: inline-block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+.rss-disclosure[open] > summary::before { transform: rotate(45deg); }
+.theme-dark .rss-disclosure > summary::before { color: #fff; }
 .rss-disclosure > summary:hover { color: var(--text-normal); }
 .rss-disclosure-body { padding: 0 0 12px; min-width: 0; }
 .rss-project-context { margin-bottom: 20px; border-bottom: 1px solid var(--rss-border); }
@@ -100,7 +153,7 @@
 .rss-query-preview { max-height: 150px; min-height: 78px; overflow: auto; }
 .rss-card-actions { gap: 6px; margin-top: 14px; }
 .rss-card-actions button { font-size: 11px; padding: 5px 9px; min-height: 30px; }
-.rss-card-detail > summary { padding: 11px 0 2px; }
+.rss-view .rss-card-detail > summary { padding: 11px 0 2px; }
 .rss-card-detail[open] > summary { padding-bottom: 12px; }
 .rss-card-detail .rss-disclosure-body { padding-bottom: 0; }
 .rss-card-detail .rss-disclosure-body > p, .rss-card-detail .rss-disclosure-body > a { font-size: 12px; }
@@ -160,6 +213,16 @@
 .rss-modal .rss-disclosure { margin-bottom: 14px; }
 .rss-modal .rss-disclosure > summary { font-size: 13px; }
 .rss-modal .rss-disclosure-body { padding: 0 2px 10px; }
+
+@media (forced-colors: active) {
+  .rss-view select, .rss-modal select,
+  .theme-dark .rss-view select, .theme-dark .rss-modal select {
+    appearance: auto;
+    -webkit-appearance: auto;
+    background-image: none;
+  }
+  .theme-dark .rss-disclosure > summary::before { color: CanvasText; }
+}
 .rss-modal .rss-modal-actions { position: sticky; bottom: 0; margin-top: 18px; padding-top: 16px; padding-bottom: 8px; background: var(--background-primary); border-top: 1px solid var(--background-modifier-border); z-index: 1; }
 .rss-modal .rss-modal-actions > .setting-item-info { display: none; }
 .rss-modal .rss-modal-actions > .setting-item-control { width: 100%; }

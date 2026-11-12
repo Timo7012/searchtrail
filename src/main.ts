@@ -1,9 +1,12 @@
-import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from 'obsidian';
-import { type Project, type ProjectInput, parseProject } from './model';
+import { App, Events, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from 'obsidian';
+import { getAPI } from 'obsidian-local-rest-api';
+import { type Project, type ProjectInput } from './model';
 import { VIEW_TYPE, type ExportFormat, type ProjectEntry, type SearchHost } from './contracts';
 import { ProjectRepository, validateDataFolder } from './repository';
 import { ResearchSearchView } from './view';
-import { ProjectModal } from './modals';
+import { ImportProjectModal, ProjectModal } from './modals';
+import { SearchTrailMcp } from './mcp';
+import type { MaterialCatalog } from './materials';
 
 interface SearchSettings { dataFolder: string; }
 const DEFAULT_SETTINGS: SearchSettings = { dataFolder: 'Search Strategies' };
@@ -14,12 +17,16 @@ export default class ResearchSearchPlugin extends Plugin implements SearchHost {
   private listeners = new Set<() => void>();
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private lastWarning = '';
+  private mcp?: SearchTrailMcp;
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.repository = new ProjectRepository(this.app, () => this.settings.dataFolder, message => {
       if (message !== this.lastWarning) { this.lastWarning = message; new Notice(message, 12000); }
     });
+    this.mcp = new SearchTrailMcp(this, () => getAPI(this.app, this.manifest));
+    this.registerEvent((this.app.workspace as Events).on('obsidian-local-rest-api:loaded', () => this.mcp?.connect()));
+    this.mcp.connect();
     this.registerView(VIEW_TYPE, leaf => new ResearchSearchView(leaf, this));
     this.addRibbonIcon('search', 'SearchTrail: журнал поисковой стратегии', () => { void this.openView(); });
     this.addCommand({ id: 'open-search-ledger', name: 'Открыть журнал поиска', callback: () => { void this.openView(); } });
@@ -28,8 +35,7 @@ export default class ResearchSearchPlugin extends Plugin implements SearchHost {
     }});
     this.addCommand({ id: 'import-search-project', name: 'Импортировать проект из JSON', callback: () => {
       new ImportProjectModal(this.app, async value => {
-        const entry = await this.repository.importProject(value);
-        this.notify();
+        const entry = await this.importProject(value);
         new Notice(`Импортирован проект «${entry.project.title}».`);
         await this.openView();
       }).open();
@@ -47,6 +53,7 @@ export default class ResearchSearchPlugin extends Plugin implements SearchHost {
   }
 
   onunload(): void {
+    this.mcp?.disconnect();
     if (this.refreshTimer !== null) clearTimeout(this.refreshTimer);
     this.listeners.clear();
   }
@@ -76,6 +83,17 @@ export default class ResearchSearchPlugin extends Plugin implements SearchHost {
 
   getDataFolder(): string { return this.settings.dataFolder; }
   listProjects(): Promise<ProjectEntry[]> { return this.repository.listProjects(); }
+  getMcpStatus(): string { return this.mcp?.status ?? 'MCP не инициализирован.'; }
+  async saveMaterials(entry: ProjectEntry, catalog: MaterialCatalog): Promise<ProjectEntry> {
+    const saved = await this.repository.saveMaterials(entry, catalog);
+    this.notify();
+    return saved;
+  }
+  async importProject(value: unknown): Promise<ProjectEntry> {
+    const entry = await this.repository.importProject(value);
+    this.notify();
+    return entry;
+  }
   async createProject(input: ProjectInput): Promise<ProjectEntry> {
     const entry = await this.repository.create(input);
     this.notify();
@@ -123,6 +141,7 @@ class SearchSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl('h2', { text: 'SearchTrail' });
+    containerEl.createEl('p', { text: this.searchPlugin.getMcpStatus() });
     containerEl.createEl('p', { text: 'Проекты сохраняются в Markdown-файлах внутри хранилища. Настройка папки не переносит существующие проекты.' });
     let path = this.searchPlugin.getDataFolder();
     new Setting(containerEl).setName('Папка проектов').setDesc('Относительно корня хранилища. Экспорты помещаются в подпапку Exports.').addText(text => {
@@ -136,41 +155,4 @@ class SearchSettingsTab extends PluginSettingTab {
     }));
     containerEl.createEl('p', { text: 'Исходные запросы и история хранятся локально. Плагин не выполняет поисковые запросы и не подключается к аккаунту Zotero.' });
   }
-}
-
-class ImportProjectModal extends Modal {
-  private content = '';
-  private busy = false;
-  constructor(app: App, private importer: (project: Project) => Promise<void>) { super(app); }
-  onOpen(): void {
-    this.contentEl.addClass('rss-modal');
-    this.contentEl.createEl('h2', { text: 'Импортировать проект из JSON' });
-    this.contentEl.createEl('p', { text: 'Выберите экспорт проекта SearchTrail или вставьте его JSON. Идентификаторы и история сохраняются; существующий проект не будет перезаписан.' });
-    const picker = this.contentEl.createEl('input', { type: 'file', attr: { accept: '.json,application/json', 'aria-label': 'Файл проекта JSON' } });
-    const area = this.contentEl.createEl('textarea', { cls: 'rss-import-area', attr: { rows: '12', placeholder: 'JSON проекта', 'aria-label': 'JSON проекта' } });
-    const error = this.contentEl.createDiv({ cls: 'rss-error', attr: { role: 'alert' } });
-    picker.onchange = async () => {
-      const file = picker.files?.[0];
-      if (!file) return;
-      if (file.size > 10 * 1024 * 1024) { error.setText('Размер файла превышает 10 МБ.'); return; }
-      try { this.content = await file.text(); area.value = this.content; error.setText(''); }
-      catch { error.setText('Не удалось прочитать выбранный файл.'); }
-    };
-    area.oninput = () => { this.content = area.value; };
-    new Setting(this.contentEl).addButton(button => button.setButtonText('Отмена').onClick(() => this.close())).addButton(button => button.setButtonText('Импортировать').setCta().onClick(async () => {
-      if (this.busy) return;
-      this.busy = true;
-      button.setDisabled(true);
-      error.setText('');
-      try {
-        if (this.content.length > 10 * 1024 * 1024) throw new Error('JSON превышает 10 МБ.');
-        const parsed: unknown = JSON.parse(this.content.replace(/^\uFEFF/, ''));
-        const project = parseProject(parsed);
-        await this.importer(project);
-        this.close();
-      } catch (problem) { error.setText(problem instanceof Error ? problem.message : String(problem)); }
-      finally { this.busy = false; button.setDisabled(false); }
-    }));
-  }
-  onClose(): void { this.contentEl.empty(); }
 }

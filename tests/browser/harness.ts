@@ -3,6 +3,9 @@ import type { App, WorkspaceLeaf } from 'obsidian';
 import { ResearchSearchView } from '../../src/view';
 import { createProject as createDomainProject, parseProject, type Project, type ProjectInput } from '../../src/model';
 import type { ExportFormat, ProjectEntry, SearchHost } from '../../src/contracts';
+import { parseProjectTransfer } from '../../src/transfer';
+import { catalogFingerprint } from '../../src/storage';
+import { parseMaterialCatalog } from '../../src/materials';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const listeners = new Set<() => void>();
@@ -28,6 +31,23 @@ const host: SearchHost = {
     emit();
     return clone(entry);
   },
+  async importProject(value: unknown) {
+    const { project, catalog } = parseProjectTransfer(value);
+    if (projects.some(entry => entry.project.id === project.id)) throw new Error('Проект с таким ID уже существует.');
+    const entry = makeEntry(project);
+    if (catalog) { entry.catalog = catalog; entry.catalogFingerprint = catalogFingerprint(catalog); }
+    projects.push(entry);
+    emit();
+    return clone(entry);
+  },
+  async saveMaterials(entry, catalog) {
+    const index = projects.findIndex(item => item.path === entry.path);
+    if (index < 0 || projects[index].fingerprint !== entry.fingerprint || projects[index].catalogFingerprint !== entry.catalogFingerprint) throw new Error('Concurrent material change');
+    const validated = parseMaterialCatalog(catalog, projects[index].project);
+    projects[index] = { ...projects[index], catalog: validated, catalogFingerprint: catalogFingerprint(validated) };
+    emit();
+    return clone(projects[index]);
+  },
   async saveProject(path: string, expectedRevision: number, next: Project, expectedFingerprint: string) {
     saveCalls += 1;
     if (nextSaveError) {
@@ -39,7 +59,7 @@ const host: SearchHost = {
     if (index === -1) throw new Error('Project missing');
     const current = projects[index];
     if (current.project.revision !== expectedRevision || current.fingerprint !== expectedFingerprint) throw new Error('Concurrent project change');
-    projects[index] = makeEntry(parseProject(next));
+    projects[index] = { ...projects[index], ...makeEntry(parseProject(next)) };
     emit();
     return clone(projects[index]);
   },

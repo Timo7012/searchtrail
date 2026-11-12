@@ -4,7 +4,7 @@ const statuses = { draft: 'Черновик', active: 'Активен', paused: 
 const runStatuses = { completed: 'Завершён', partial: 'Частично выполнен', failed: 'Не выполнен' };
 const purposes = { pilot: 'Пробный поиск', main: 'Основной поиск', update: 'Обновление поиска' };
 
-function csvCell(value: unknown): string {
+export function csvCell(value: unknown): string {
   let result = value === null || value === undefined ? '' : String(value);
   // Keep CSV safe to open in spreadsheets. JSON retains exact original values.
   if (/^[\s\uFEFF]*[=+\-@]/u.test(result) || /^[\t\r\n]/.test(result)) result = `'${result}`;
@@ -28,14 +28,14 @@ export function projectToCsv(project: Project): string {
   return '\uFEFF' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 
-function inline(value: string): string {
+export function inline(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\/g, '\\\\').replace(/([`*_{}\[\]()#+.!|~-])/g, '\\$1').replace(/\r?\n/g, ' ');
 }
 
 function cell(value: string | number | null): string { return value === null ? '—' : inline(String(value)); }
 
 /** A sufficiently long fence keeps raw user text inert, including embedded code fences. */
-function block(value: string, language = 'text'): string {
+export function block(value: string, language = 'text'): string {
   const matches = value.match(/`+/g) ?? [];
   const fence = '`'.repeat(Math.max(3, ...matches.map(x => x.length + 1)));
   return `${fence}${language}\n${value}\n${fence}`;
@@ -78,7 +78,7 @@ export function projectToMarkdown(project: Project): string {
     `# Поисковая стратегия: ${inline(project.title)}`, '',
     `Проект: ${inline(project.id)}. Редакция данных: ${project.revision}.`, '',
     `Создан: ${inline(project.createdAt)}. Изменён: ${inline(project.updatedAt)}.`, '',
-    '## Исследовательский вопрос', '', block(project.question || 'Не указан.'), '',
+    '## Цель / вопрос поиска', '', block(project.question || 'Не указана.'), '',
     '## Критерии и границы поиска', '', block(project.criteria || 'Не указаны.'), '',
     '## Учёт дубликатов', '', block(project.deduplicationNotes || 'Метод устранения дубликатов не описан.'), '',
     '## Статистика журнала', '',

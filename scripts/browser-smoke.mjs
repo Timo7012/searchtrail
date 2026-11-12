@@ -81,12 +81,13 @@ try {
   const state = () => page.evaluate(() => window.rssHarness.snapshot());
   const modal = page.getByRole('dialog');
   assert.equal((await state()).projects.length, 0);
-  assert.equal(await page.getByText('Начните с исследовательского вопроса', { exact: true }).isVisible(), true);
+  assert.equal(await page.getByText('Начните с цели поиска', { exact: true }).isVisible(), true);
   checks.push('empty state creates no sample projects');
 
   await page.getByRole('button', { name: 'Создать первый проект', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Создать пустой проект', exact: true }).click();
   await modal.getByLabel('Название *', { exact: true }).fill('Прогнозирование отказов SFP');
-  await modal.getByLabel('Исследовательский вопрос', { exact: true }).fill('Какие признаки помогают прогнозировать техническое состояние?');
+  await modal.getByLabel('Цель / вопрос поиска', { exact: true }).fill('Какие признаки помогают прогнозировать техническое состояние?');
   await modal.getByLabel('Критерии отбора', { exact: true }).fill('Измерения на оборудовании; описание методики проверки.');
   await modal.getByRole('button', { name: 'Создать проект', exact: true }).click();
   await modal.waitFor({ state: 'detached' });
