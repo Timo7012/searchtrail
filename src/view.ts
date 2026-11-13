@@ -85,6 +85,9 @@ export class ResearchSearchView extends ItemView {
   private selectedId = '';
   private renderedId = '';
   private activeTab: Tab = 'strategies';
+  private focusedStrategyId = '';
+  private detailDecision = '';
+  private detailRunLimit = 50;
   private filters = emptyFilters();
   private unsubscribe?: () => void;
   private opened = false;
@@ -101,6 +104,7 @@ export class ResearchSearchView extends ItemView {
   private results!: HTMLElement;
   private resultsCount!: HTMLElement;
   private filterFeedback!: HTMLElement;
+  private filtersEl!: HTMLElement;
   private textInput!: HTMLInputElement;
   private platformSelect!: HTMLSelectElement;
   private strategyStatusSelect!: HTMLSelectElement;
@@ -146,6 +150,7 @@ export class ResearchSearchView extends ItemView {
     this.picker = labelSelect(projectPicker, 'Поисковый проект');
     this.picker.addEventListener('change', () => {
       this.selectedId = this.picker.value;
+      this.focusedStrategyId = '';
       this.filters = emptyFilters();
       this.runLimit = 50;
       this.renderProject(true);
@@ -244,9 +249,11 @@ export class ResearchSearchView extends ItemView {
       return;
     }
     if (force || this.renderedId !== entry.project.id) {
+      if (this.renderedId !== entry.project.id) this.focusedStrategyId = '';
       this.renderedId = entry.project.id;
       this.buildProjectLayout();
     }
+    if (!entry.project.strategies.some(strategy => strategy.id === this.focusedStrategyId)) this.focusedStrategyId = '';
     this.renderOverview(entry);
     this.renderStats(entry);
     this.updateFilterOptions(entry);
@@ -279,6 +286,7 @@ export class ResearchSearchView extends ItemView {
     }, true);
 
     const filters = this.projectArea.createDiv({ cls: 'rss-filters' });
+    this.filtersEl = filters;
     const common = filters.createDiv({ cls: 'rss-filter-row rss-filter-primary' });
     this.textInput = labelInput(common, 'Найти');
     this.textInput.type = 'search';
@@ -378,11 +386,11 @@ export class ResearchSearchView extends ItemView {
     }
   }
 
-  private renderStats(entry: ProjectEntry): void {
-    this.statsEl.empty();
-    this.statsEl.createEl('h3', { cls: 'rss-small-heading', text: 'Сводка по всем выполнениям проекта' });
+  private renderStats(entry: ProjectEntry, parent = this.statsEl, heading = 'Сводка по всем выполнениям проекта'): void {
+    parent.empty();
+    parent.createEl('h3', { cls: 'rss-small-heading', text: heading });
     const stats = getStats(entry.project);
-    const grid = this.statsEl.createDiv({ cls: 'rss-stats-grid' });
+    const grid = parent.createDiv({ cls: 'rss-stats-grid' });
     const fields: Array<[string, KnownTotal]> = [
       ['Показано результатов', stats.totals.reportedHits], ['Просмотрено записей', stats.totals.screenedRecords],
       ['Отобрано после просмотра', stats.totals.selectedRecords], ['Выгружено записей', stats.totals.exportedRecords],
@@ -393,7 +401,7 @@ export class ResearchSearchView extends ItemView {
       card.createDiv({ cls: 'rss-stat-number', text: total.known ? countText(total.sum) : '—' });
       card.createDiv({ cls: 'rss-stat-coverage', text: `Указано: ${total.known} из ${total.total} выполнений` });
     }
-    this.statsEl.createEl('p', {
+    parent.createEl('p', {
       cls: 'rss-stat-note',
       text: 'Суммы известных значений по выполнениям. Между поисками возможны повторы; это не число уникальных публикаций.'
         + (entry.project.runs.some(run => run.reportedHitsApproximate && run.reportedHits !== null) ? ' Есть приблизительные значения выдачи.' : ''),
@@ -413,12 +421,18 @@ export class ResearchSearchView extends ItemView {
   }
 
   private setTab(tab: Tab): void {
+    this.focusedStrategyId = '';
     this.activeTab = tab;
     this.updateTabs();
     this.renderResults();
   }
 
   private updateTabs(): void {
+    const detail = Boolean(this.focusedStrategyId);
+    this.filtersEl.hidden = detail;
+    this.statsEl.hidden = detail;
+    this.contextEl.hidden = detail;
+    this.addButton.hidden = detail;
     const journal = this.activeTab === 'journal';
     const materials = this.activeTab === 'materials';
     this.strategyTab.toggleClass('is-active', !journal && !materials);
@@ -453,6 +467,10 @@ export class ResearchSearchView extends ItemView {
     const entry = this.entry;
     if (!entry || !this.results) return;
     this.results.empty();
+    if (this.focusedStrategyId) {
+      const strategy = entry.project.strategies.find(item => item.id === this.focusedStrategyId);
+      if (strategy) { this.renderStrategyDetail(entry, strategy); return; }
+    }
     this.filterFeedback.hidden = true;
     const needle = this.filters.text.trim().toLocaleLowerCase('ru-RU');
     if (this.activeTab === 'materials') {
@@ -575,9 +593,66 @@ export class ResearchSearchView extends ItemView {
     }
   }
 
-  private renderStrategy(parent: HTMLElement, entry: ProjectEntry, strategy: Strategy): void {
+  private openStrategy(strategyId: string): void {
+    this.focusedStrategyId = strategyId;
+    this.detailDecision = '';
+    this.detailRunLimit = 50;
+    this.updateTabs();
+    this.renderResults();
+    this.results.querySelector<HTMLElement>('.rss-strategy-detail-title')?.focus();
+  }
+
+  private renderStrategyDetail(entry: ProjectEntry, strategy: Strategy): void {
+    const detail = this.results.createDiv({ cls: 'rss-strategy-detail' });
+    button(detail, '← К списку запросов', () => {
+      this.focusedStrategyId = '';
+      this.updateTabs();
+      this.renderResults();
+      Array.from(this.results.querySelectorAll<HTMLElement>('[data-strategy-id]'))
+        .find(card => card.dataset.strategyId === strategy.id)?.querySelector<HTMLElement>('.rss-open-strategy')?.focus();
+    });
+    const title = detail.createEl('h2', { cls: 'rss-strategy-detail-title', text: 'Обзор запроса' });
+    title.tabIndex = -1;
+    this.renderStrategy(detail, entry, strategy, true);
+    const runs = entry.project.runs.filter(run => run.strategyId === strategy.id);
+    const runIds = new Set(runs.map(run => run.id));
+    const materials = (entry.catalog?.materials ?? []).filter(material => material.strategyIds.includes(strategy.id)
+      || material.runIds.some(id => runIds.has(id)));
+    const stats = detail.createDiv({ cls: 'rss-stats-block rss-strategy-stats' });
+    this.renderStats({ ...entry, project: { ...entry.project, strategies: [strategy], runs } }, stats, 'Статистика запроса');
+    stats.createEl('p', { cls: 'rss-muted rss-small', text: `${runs.length} выполнений по всем версиям этого запроса.` });
+
+    const materialSection = detail.createDiv({ cls: 'rss-strategy-materials' });
+    materialSection.createEl('h3', { text: 'Материалы запроса' });
+    materialSection.createEl('p', { cls: 'rss-material-summary', text: `Связано: ${materials.length} · Отобрано: ${materials.filter(item => item.decision === 'selected').length} · Без решения: ${materials.filter(item => item.decision === 'undecided').length} · Исключено: ${materials.filter(item => item.decision === 'excluded').length}` });
+    materialSection.createEl('p', { cls: 'rss-muted rss-small', text: 'Карточки, связанные с запросом напрямую или через его выполнения. Решение по материалу общее для проекта; число карточек учитывается отдельно от статистики выполнений.' });
+    const decision = labelSelect(materialSection, 'Показать материалы запроса');
+    options(decision, [['', 'Все решения'], ...Object.entries(MATERIAL_DECISIONS)], this.detailDecision);
+    decision.addEventListener('change', () => {
+      this.detailDecision = decision.value;
+      this.renderResults();
+      this.results.querySelector<HTMLSelectElement>('[aria-label="Показать материалы запроса"]')?.focus();
+    });
+    const visible = materials.filter(material => !this.detailDecision || material.decision === this.detailDecision);
+    const list = materialSection.createDiv({ cls: 'rss-strategy-material-list' });
+    for (const material of visible) this.renderMaterial(list, entry, material);
+    if (!visible.length) list.createEl('p', { cls: 'rss-muted', text: materials.length
+      ? 'Материалов с этим решением нет.' : 'Связанных материалов пока нет. Добавьте карточку на вкладке «Материалы» и укажите этот запрос или его выполнение.' });
+
+    const journal = detail.createDiv({ cls: 'rss-strategy-journal' });
+    journal.createEl('h3', { text: `Выполнения запроса (${runs.length})` });
+    if (!runs.length) journal.createEl('p', { cls: 'rss-muted', text: 'Поиск по этому запросу ещё не записан.' });
+    for (const run of [...runs].reverse().slice(0, this.detailRunLimit)) this.renderRun(journal, entry, run);
+    if (runs.length > this.detailRunLimit) button(journal, 'Показать ещё 50 выполнений', () => {
+      this.detailRunLimit += 50;
+      this.renderResults();
+    });
+  }
+
+  private renderStrategy(parent: HTMLElement, entry: ProjectEntry, strategy: Strategy, detail = false): void {
     const revision = lastRevision(strategy);
     const card = parent.createEl('article', { cls: 'rss-strategy-card' });
+    card.dataset.strategyId = strategy.id;
     const head = card.createDiv({ cls: 'rss-card-heading' });
     head.createEl('h3', { text: strategy.title });
     head.createEl('span', { cls: `rss-badge rss-status-${strategy.status}`, text: STRATEGY_LABELS[strategy.status] });
@@ -591,6 +666,7 @@ export class ResearchSearchView extends ItemView {
       ? `${runs.length} выполнений · последнее ${displaySearchDate(latestRun.executedAt)}`
       : 'Выполнения ещё не записаны' });
     const actions = card.createDiv({ cls: 'rss-actions rss-card-actions' });
+    if (!detail) button(actions, 'Открыть запрос', () => this.openStrategy(strategy.id), true).addClass('rss-open-strategy');
     button(actions, 'Записать поиск', () => new RunModal(this.host, entry, strategy.id, undefined, this.afterSaved).open(), true);
     button(actions, 'Копировать', () => { void copyQuery(this.app, revision.definition.query); });
     button(actions, 'Изменить', () => new StrategyModal(this.host, entry, strategy, this.afterSaved).open());

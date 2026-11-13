@@ -151,6 +151,11 @@
 .rss-status-failed { color: var(--text-error); }
 .rss-query-code { font-family: var(--font-monospace); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px; margin: 10px 0; user-select: text; }
 .rss-query-preview { max-height: 150px; min-height: 78px; overflow: auto; }
+.rss-strategy-detail { display: grid; gap: 18px; }
+.rss-strategy-detail > button { justify-self: start; }
+.rss-strategy-detail-title { margin-top: 4px !important; }
+.rss-strategy-material-list, .rss-strategy-journal { display: grid; gap: 12px; }
+.rss-strategy-materials > .rss-filter { margin: 12px 0; max-width: 320px; }
 .rss-card-actions { gap: 6px; margin-top: 14px; }
 .rss-card-actions button { font-size: 11px; padding: 5px 9px; min-height: 30px; }
 .rss-view .rss-card-detail > summary { padding: 11px 0 2px; }

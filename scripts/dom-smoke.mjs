@@ -208,6 +208,101 @@ try {
   click('Отмена');
   checks.push('panel import selects the new project and preserves revisions/history; duplicate import keeps input without creating a copy');
 
+  // Detail navigation must scope both run totals and direct/indirect material links.
+  const focusedProject = JSON.parse(JSON.stringify(imported));
+  focusedProject.id = randomUUID();
+  focusedProject.title = 'Проект для обзора запроса';
+  const firstStrategy = focusedProject.strategies[0];
+  const secondStrategy = JSON.parse(JSON.stringify(firstStrategy));
+  secondStrategy.id = randomUUID();
+  secondStrategy.title = 'Другой запрос';
+  secondStrategy.revisions.forEach(revision => { revision.id = randomUUID(); });
+  const emptyStrategy = JSON.parse(JSON.stringify(secondStrategy));
+  emptyStrategy.id = randomUUID();
+  emptyStrategy.title = 'Запрос без данных';
+  emptyStrategy.revisions.forEach(revision => { revision.id = randomUUID(); });
+  focusedProject.strategies.push(secondStrategy, emptyStrategy);
+  const firstRun = focusedProject.runs[0];
+  const recentRevision = firstStrategy.revisions[1];
+  const secondRun = { ...JSON.parse(JSON.stringify(firstRun)), id: randomUUID(), history: [],
+    queryRevisionId: recentRevision.id, queryRevisionNumber: recentRevision.number,
+    definition: recentRevision.definition, reportedHits: 7, reportedHitsApproximate: true,
+    screenedRecords: null, selectedRecords: null };
+  const unrelatedRun = { ...JSON.parse(JSON.stringify(firstRun)), id: randomUUID(), history: [],
+    strategyId: secondStrategy.id, strategyTitle: secondStrategy.title,
+    queryRevisionId: secondStrategy.revisions[0].id, reportedHits: 999 };
+  focusedProject.runs.push(secondRun, unrelatedRun);
+  const templateMaterial = JSON.parse(JSON.stringify(importedCatalog.materials[0]));
+  const makeMaterial = (title, strategyIds, runIds, decision = 'selected') => ({
+    ...templateMaterial, id: randomUUID(), title, strategyIds, runIds, decision,
+    history: [], exclusionReason: '', filePath: 'Files/test.pdf', notePath: 'Notes/test.md',
+  });
+  const detailCatalog = { ...importedCatalog, projectId: focusedProject.id, materials: [
+    makeMaterial('Прямая связь', [firstStrategy.id], []),
+    makeMaterial('Связь через выполнение', [], [secondRun.id], 'undecided'),
+    makeMaterial('<img src=x onerror=alert(1)> Две связи', [firstStrategy.id], [firstRun.id, secondRun.id]),
+    makeMaterial('Чужой материал', [secondStrategy.id], [unrelatedRun.id]),
+  ] };
+  click('Новый проект');
+  click('Импортировать из JSON');
+  fill('JSON проекта', JSON.stringify({ format: 'searchtrail-project', transferVersion: 1,
+    project: focusedProject, catalog: detailCatalog }));
+  await save('Импортировать');
+  await waitFor('detail fixture selected', () => control('Поисковый проект', document).value === focusedProject.id);
+  click('Запросы');
+  fill('Найти', firstStrategy.title, document);
+  click('Открыть запрос');
+  let detail = document.querySelector('.rss-strategy-detail');
+  assert.ok(detail);
+  assert.equal(document.activeElement, detail.querySelector('.rss-strategy-detail-title'));
+  const totals = [...detail.querySelectorAll('.rss-strategy-stats .rss-stat')];
+  assert.deepEqual(totals.map(el => el.querySelector('.rss-stat-number').textContent), ['7', '0', '0', '—']);
+  assert.ok(totals[0].textContent.includes('Указано: 2 из 2'));
+  assert.ok(totals[1].textContent.includes('Указано: 1 из 2'));
+  assert.ok(detail.querySelector('.rss-strategy-stats').textContent.includes('приблизительные'));
+  assert.equal(detail.querySelectorAll('.rss-run-card').length, 2);
+  assert.equal(detail.querySelectorAll('.rss-material-card').length, 3);
+  assert.ok(detail.querySelector('.rss-material-summary').textContent.includes('Связано: 3 · Отобрано: 2 · Без решения: 1'));
+  assert.equal(detail.querySelector('img'), null);
+  assert.ok(!detail.textContent.includes('Чужой материал'));
+  checks.push('query detail scopes totals across historical revisions, preserves null/zero/approximation, unions direct and run material links without duplicates or unsafe HTML');
+
+  click('Открыть файл', detail.querySelector('.rss-material-card'));
+  click('Открыть заметку материала', detail.querySelector('.rss-material-card'));
+  assert.deepEqual([...state().openedNotes].slice(-2), ['Files/test.pdf', 'Notes/test.md']);
+  fill('Показать материалы запроса', 'selected', document);
+  assert.equal(document.querySelectorAll('.rss-strategy-detail .rss-material-card').length, 2);
+  fill('Показать материалы запроса', 'excluded', document);
+  assert.equal(document.querySelectorAll('.rss-strategy-detail .rss-material-card').length, 0);
+  assert.ok(document.querySelector('.rss-strategy-detail').textContent.includes('Материалов с этим решением нет.'));
+  fill('Показать материалы запроса', 'undecided', document);
+  click('Изменить материал', document.querySelector('.rss-strategy-detail'));
+  fill('Решение по материалу', 'selected');
+  await save('Сохранить материал');
+  await waitFor('detail refresh after edit', () => document.querySelector('.rss-material-summary')?.textContent.includes('Отобрано: 3'));
+  assert.equal(document.querySelectorAll('.rss-strategy-detail .rss-material-card').length, 0);
+  const savedFocus = state().projects.find(entry => entry.project.id === focusedProject.id);
+  assert.deepEqual(JSON.parse(JSON.stringify(savedFocus.project.runs)), JSON.parse(JSON.stringify(focusedProject.runs)));
+  assert.equal(savedFocus.catalog.materials[1].history.length, 1);
+  checks.push('query material decision filter, PDF/note navigation and live refresh after a material edit preserve run counters and catalog history');
+
+  click('← К списку запросов');
+  assert.equal(document.querySelector('.rss-strategy-detail'), null);
+  assert.ok(document.activeElement.classList.contains('rss-open-strategy'));
+  assert.equal(control('Найти', document).value, firstStrategy.title);
+  assert.equal(document.querySelectorAll('.rss-open-strategy').length, 1);
+  click('Сбросить фильтры');
+  const emptyCard = [...document.querySelectorAll('[data-strategy-id]')].find(el => el.dataset.strategyId === emptyStrategy.id);
+  click('Открыть запрос', emptyCard);
+  detail = document.querySelector('.rss-strategy-detail');
+  assert.deepEqual([...detail.querySelectorAll('.rss-stat-number')].map(el => el.textContent), ['—', '—', '—', '—']);
+  assert.ok(detail.textContent.includes('Связанных материалов пока нет.'));
+  assert.ok(detail.textContent.includes('Поиск по этому запросу ещё не записан.'));
+  fill('Поисковый проект', imported.id, document);
+  assert.equal(document.querySelector('.rss-strategy-detail'), null);
+  assert.equal(document.querySelector('.rss-filters').hidden, false);
+  checks.push('query detail supports empty data, keyboard return to list, and clears its scope when switching projects');
+
   assert.equal(state().subscribers, 1);
   click('Новый проект');
   assert.ok(document.querySelector('[role="menu"]'));
